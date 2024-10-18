@@ -1,78 +1,194 @@
+import time
+import os
 from dataclasses import dataclass
 from enum import Enum
+from collections import defaultdict
+from datetime import datetime
+
 
 class Coin(Enum):
-    PENNY = .01
-    NICKEL = .05
-    DIME = .10
-    QUARTER = .25
+    PENNY = 1
+    NICKEL = 5
+    DIME = 10
+    QUARTER = 25
+
+class MoneySupply:
+    def __init__(self):
+        self.coins = {
+            Coin.QUARTER.name: 0,
+            Coin.DIME.name: 0,
+            Coin.NICKEL.name: 0,
+            Coin.PENNY.name: 0
+        }
+
+    def AddCoin(self, coin: Coin) -> int:
+        self.coins[coin.name] += 1
+        return coin.value
+
+
+    def RemoveCoin(self, coin: Coin) -> int:
+        if self.coins[coin.name] > 0:
+            self.coins[coin.name] -= 1
+            return coin.value
+        return 0
+    
+
+    def AddCoins(self, added_money) -> int:
+        total = 0
+        for coin_name, count in added_money.coins.items():
+            for _ in range(count):
+                total += self.AddCoin(Coin[coin_name])
+        return total
+
+
+    def RemoveCoins(self, removed_money) -> int:
+        total = 0
+        for coin_name, count in removed_money.coins.items():
+            for _ in range(count):
+                total += self.RemoveCoin(Coin[coin_name])
+        return total
+
+
+    def __repr__(self):
+        return str(self.coins)
 
 @dataclass
 class InventoryItem:
-    price: float = 0
-    quantity: int = 0
+    price: int  # Change to int to represent cents
+    quantity: int
 
 class VendingMachine:
-
-
     def __init__(self):
-        self.money: float = 0
-        self.Inventory = {"pepsi": InventoryItem(1.50, 10), "coke": InventoryItem(1.60, 10), "tea": InventoryItem(1.25, 10)}
-        self.money_supply = {Coin.QUARTER.name: 0, Coin.DIME.name: 0, Coin.NICKEL.name: 0, Coin.PENNY.name: 0}
+        self.money: int = 0  # Change to int for cents
+        self.inventory = {
+            "pepsi": InventoryItem(150, 10),
+            "coke": InventoryItem(160, 10),
+            "tea": InventoryItem(125, 10)
+        }
+        self.money_supply = MoneySupply()
+        self.purchase_history = defaultdict(list)
+        self.password = "PopGoesTheWeasel"
+        for coin in Coin:
+            self.money_supply.coins[coin.name] = 20
 
+    def GetName(self, name: str) -> str:
+        return name if name in self.inventory else "item not in inventory"
 
-    def get_name(self, name: str) -> str:
-        if name in self.Inventory.keys():
-            return name
-        else:
-            return "item not in inventory"
+    def GetPrice(self, name: str) -> int:  # Change to int for cents
+        return self.inventory.get(name, InventoryItem(0, 0)).price
 
-    def get_price(self, name: str) -> str:
-        return self.Inventory.get(name, 'does not exist').price
+    def GetItem(self, name: str) -> InventoryItem:
+        return self.inventory.get(name, InventoryItem(0, 0))
 
-
-    def Get_Item(self, name: str) -> str:
-        return self.Inventory.get(name, 'does not exist')
-
-    def add_coins(self, added: Coin) -> int:
-        self.money += added.value
-        self.money_supply[added.name] += 1
+    def AddCoin(self, coin: Coin) -> int:
+        self.money += coin.value
+        self.money_supply.AddCoin(coin)
         return self.money
 
-    def get_product(self, name: str) -> str:
-        product = self.Inventory.get(name, 'does not exist')
-        if self.money >= product.price:
+    def AddCoins(self, added_money: MoneySupply) -> None:
+        self.money += self.money_supply.AddCoins(added_money)
+    
+
+    def DispenseProduct(self, name: str) -> None:
+        """Track the purchase of a product by adding a timestamp to the history."""
+        purchase_time = time.time()
+        self.purchase_history[name].append(purchase_time)
+        readable_time = datetime.fromtimestamp(purchase_time).strftime('%Y-%m-%d %H:%M:%S')
+        print(f"{name} purchased at {readable_time}")
+
+    
+    def GetProduct(self, name: str) -> str:
+        product = self.inventory.get(name)
+        if product is None:
+            return "item not in inventory"
+
+        if self.money >= product.price and product.quantity > 0:
             self.money -= product.price
             product.quantity -= 1
+            self.DispenseProduct(name)
             return "Ok"
-        else:
-            return "invalid"
+        return "insufficent funds"
 
-    def add_product(self, name: str, num_to_add: int) -> int:
-        product = self.Inventory.get(name, 'does not exist')
-        product.quantity += num_to_add
-        return product.quantity
 
-    def get_change(self) -> list[Coin]:
+    def GetChange(self) -> MoneySupply:
         return_val = self.money
-        coins: list[Coin] = []
+        change_supply = MoneySupply()
+
+        def update_change(coin: Coin) -> int:
+            change_supply.AddCoin(coin)
+            self.money_supply.RemoveCoin(coin)
+            return coin.value
+
         while return_val > 0:
-            if return_val >= .25:
-                coins.append(Coin.QUARTER)
-                return_val -= .25
-            elif return_val >= .10:
-                coins.append(Coin.DIME)
-                return_val -= .10
-            elif return_val >= .05:
-                coins.append(Coin.NICKEL)
-                return_val -= .05
+            if return_val >= Coin.QUARTER.value and self.money_supply.coins[Coin.QUARTER.name] > 0:
+                return_val -= update_change(Coin.QUARTER)
+            elif return_val >= Coin.DIME.value and self.money_supply.coins[Coin.DIME.name] > 0:
+                return_val -= update_change(Coin.DIME)
+            elif return_val >= Coin.NICKEL.value and self.money_supply.coins[Coin.NICKEL.name] > 0:
+                return_val -= update_change(Coin.NICKEL)
+            elif return_val >= Coin.PENNY.value and self.money_supply.coins[Coin.PENNY.name] > 0:
+                return_val -= update_change(Coin.PENNY)
+
+        return change_supply
+
+
+    #admin features
+    def AddCoinsToStock(self, added_money: MoneySupply, password: str) -> None:
+        if password == self.password:
+            _ = self.money_supply.AddCoins(added_money)
+        else:
+            print("incorrect Password")
+
+    def RemoveCoinsFromStock(self, added_money: MoneySupply, password: str) -> None:
+        if password == self.password:
+            _ = self.money_supply.RemoveCoins(added_money)
+        else:
+            print("incorrect Password")
+
+    
+    def AddProduct(self, name: str, num_to_add: int, password: str) -> int:
+        if password == self.password:
+            if name in self.inventory:
+                # If product exists, update the quantity
+                product = self.inventory[name]
+                product.quantity += num_to_add
             else:
-                coins.append(Coin.PENNY)
-                return_val -= .01
-        
-        return coins
+                # If product does not exist, create a new product
+                self.inventory[name] = InventoryItem(price=100, quantity=num_to_add)  # Set a default price of 0.0 or another appropriate value
+                print("added ", name, " to inventory with a default price of 1.00")
+        return self.inventory[name].quantity
+
+    def ChangePrice(self, name: str, price: int, password: str) -> int:
+        if password == self.password and name in self.inventory:
+            old_price = self.inventory[name].price
+            self.inventory[name].price = price
+            print("set new price to: ", price, "from: ", old_price)
+            return price
 
 
+    def ChangePass(self, new_pass: str, password: str):
+        if password == self.password:
+            self.password = new_pass
 
-    if __name__ == "__main__":
-        print("\n\nHello World!\n\n")
+
+    def GeneratePurchaseReport(self, filename: str, password: str) -> None:
+
+        if password != self.password:
+            return
+        """Generates a report of all purchase history in a text file."""
+        with open(filename, 'w') as file:
+            for product_name, timestamps in self.purchase_history.items():
+                file.write(f"Product: {product_name}\n")
+                if timestamps:  # Check if there are any timestamps
+                    for timestamp in timestamps:
+                        readable_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp))
+                        file.write(f"  Purchased at: {readable_time}\n")
+                else:
+                    file.write("  No purchases recorded.\n")
+                file.write("\n")  # Add an empty line between products
+
+        print(f"Report generated: {filename}")
+
+if __name__ == "__main__":
+    machine = VendingMachine()
+    print("Using the machine...\n")

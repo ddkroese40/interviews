@@ -1,0 +1,7 @@
+Product: tea
+  Purchased at: 2024-10-18 15:38:04
+  Purchased at: 2024-10-18 15:38:04
+
+Product: pepsi
+  Purchased at: 2024-10-18 15:38:04
+

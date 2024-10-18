@@ -36,9 +36,9 @@
     Allow users to cancel a transaction and get back the inserted coins.
 
 ### Advanced Requirements:
-9. Multiple Product Selection:
+9. ~~Multiple Product Selection:~~
     Allow users to select multiple products in a single transaction.
-10. Special Offers:
+10. ~~Special Offers:~~
     Implement special offers like “Buy 1 Get 1 Free” or discounts.
 11. Admin Functions:
         Provide password-protected admin functions to:View sales reports.
